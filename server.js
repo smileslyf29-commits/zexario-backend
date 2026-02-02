@@ -6,13 +6,23 @@ const cors = require("cors");
 const app = express();
 
 /* =====================
+   CORS CONFIGURATION
+===================== */
+const corsOptions = {
+  origin: "https://zexario-frontend.onrender.com", // only allow your frontend
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"]
+};
+
+// Enable CORS for all routes
+app.use(cors(corsOptions));
+
+// Handle preflight OPTIONS requests
+app.options("*", cors(corsOptions));
+
+/* =====================
    MIDDLEWARE
 ===================== */
-// Allow your frontend domain only for security
-app.use(cors({
-  origin: "https://zexario-frontend.onrender.com"
-}));
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -70,7 +80,7 @@ app.post("/checkout", async (req, res) => {
 });
 
 /* =====================
-   ROOT TEST
+   ROOT TEST ROUTE
 ===================== */
 app.get("/", (req, res) => {
   res.send("Zexario Backend Running");
