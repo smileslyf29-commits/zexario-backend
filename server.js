@@ -8,7 +8,11 @@ const app = express();
 /* =====================
    MIDDLEWARE
 ===================== */
-app.use(cors({ origin: "*" }));
+// Allow your frontend domain only for security
+app.use(cors({
+  origin: "https://zexario-frontend.onrender.com"
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -16,7 +20,10 @@ app.use(express.urlencoded({ extended: true }));
    MONGODB CONNECTION
 ===================== */
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, { 
+    useNewUrlParser: true, 
+    useUnifiedTopology: true 
+  })
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
 
@@ -44,40 +51,23 @@ const Order = mongoose.model("Order", orderSchema);
 ===================== */
 app.post("/checkout", async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      phone,
-      address,
-      city,
-      paymentMethod,
-      cart
-    } = req.body;
+    const { name, email, phone, address, city, paymentMethod, cart } = req.body;
 
     if (!cart || !cart.length) {
       return res.status(400).json({ message: "Cart is empty" });
     }
 
-    const order = new Order({
-      name,
-      email,
-      phone,
-      address,
-      city,
-      paymentMethod,
-      cart
-    });
-
+    const order = new Order({ name, email, phone, address, city, paymentMethod, cart });
     await order.save();
+
     console.log("🧾 Order saved:", order);
-res.status(200).json({ message: "Order placed successfully" });
+    res.status(200).json({ message: "Order placed successfully" });
 
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 /* =====================
    ROOT TEST
