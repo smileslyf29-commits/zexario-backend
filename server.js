@@ -2,22 +2,35 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const nodemailer = require("nodemailer");
 
 const app = express();
 
 /* =====================
    CORS CONFIGURATION
 ===================== */
+const allowedOrigins = [
+  "https://zexario-frontend.onrender.com",
+  "https://www.zexario.com",
+  "https://zexario.com"
+];
+
 const corsOptions = {
-  origin: "https://zexario-frontend.onrender.com", // only allow your frontend
+  origin: function (origin, callback) {
+    // allow server-to-server, Postman, etc.
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"]
 };
 
-// Enable CORS for all routes
 app.use(cors(corsOptions));
-
-// Handle preflight OPTIONS requests
 app.options("*", cors(corsOptions));
 
 /* =====================
@@ -30,12 +43,23 @@ app.use(express.urlencoded({ extended: true }));
    MONGODB CONNECTION
 ===================== */
 mongoose
-  .connect(process.env.MONGO_URI, { 
-    useNewUrlParser: true, 
-    useUnifiedTopology: true 
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
   })
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
+
+/* =====================
+   EMAIL CONFIG (NODEMAILER)
+===================== */
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.ADMIN_EMAIL,      // your email
+    pass: process.env.ADMIN_EMAIL_PASS  // Gmail App Password
+  }
+});
 
 /* =====================
    ORDER SCHEMA
@@ -67,14 +91,55 @@ app.post("/checkout", async (req, res) => {
       return res.status(400).json({ message: "Cart is empty" });
     }
 
-    const order = new Order({ name, email, phone, address, city, paymentMethod, cart });
+    const order = new Order({
+      name,
+      email,
+      phone,
+      address,
+      city,
+      paymentMethod,
+      cart
+    });
+
     await order.save();
 
-    console.log("🧾 Order saved:", order);
+    /* =====================
+       SEND ORDER EMAIL
+    ===================== */
+    const orderItems = cart
+      .map(
+        item =>
+          `• ${item.name} (Qty: ${item.quantity}) - ₹${item.price}`
+      )
+      .join("\n");
+
+    const mailOptions = {
+      from: `"Zexario Orders" <${process.env.ADMIN_EMAIL}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject: "🧾 New Order Received - Zexario",
+      text: `
+New Order Received 🚀
+
+Customer Name: ${name}
+Email: ${email}
+Phone: ${phone}
+Address: ${address}, ${city}
+Payment Method: ${paymentMethod}
+
+Items:
+${orderItems}
+
+Order Date: ${new Date().toLocaleString()}
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log("🧾 Order saved & email sent");
     res.status(200).json({ message: "Order placed successfully" });
 
   } catch (error) {
-    console.error(error);
+    console.error("❌ Checkout Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
